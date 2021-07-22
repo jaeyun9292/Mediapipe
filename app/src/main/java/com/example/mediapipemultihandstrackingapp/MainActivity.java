@@ -2,9 +2,6 @@ package com.example.mediapipemultihandstrackingapp;
 
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
-
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Handler;
 import android.util.Log;
 import android.util.Size;
@@ -12,24 +9,26 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.anyractive.net.AgentServerMainThread;
-import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark;
-import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmarkList;
-import com.google.mediapipe.formats.proto.DetectionProto.Detection;
-import com.google.mediapipe.formats.proto.DetectionProto.DetectionList;
 import com.google.mediapipe.components.CameraHelper;
 import com.google.mediapipe.components.CameraXPreviewHelper;
 import com.google.mediapipe.components.ExternalTextureConverter;
 import com.google.mediapipe.components.FrameProcessor;
 import com.google.mediapipe.components.PermissionHelper;
+import com.google.mediapipe.formats.proto.DetectionProto.DetectionList;
+import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmark;
+import com.google.mediapipe.formats.proto.LandmarkProto.NormalizedLandmarkList;
 import com.google.mediapipe.framework.AndroidAssetUtil;
 import com.google.mediapipe.framework.PacketGetter;
 import com.google.mediapipe.glutil.EglManager;
 
 import java.util.List;
 
- /* Main activity of MediaPipe example apps.
+/* Main activity of MediaPipe example apps.
  * MediaPipe 예제 앱의 주요 활동.*/
 
 public class MainActivity extends AppCompatActivity {
@@ -51,6 +50,9 @@ public class MainActivity extends AppCompatActivity {
     static {
         // 앱에 필요한 모든 기본 라이브러리를 로드합니다.
         System.loadLibrary("mediapipe_jni");
+
+        // OpenCV(Open Source Computer Vision)은 실시간 컴퓨터 비전을 목적으로 한 프로그래밍 라이브러리이다.
+        // 원래는 인텔이 개발하였다. 실시간 이미지 프로세싱에 중점을 둔 라이브러리이다
         System.loadLibrary("opencv_java3");
     }
 
@@ -92,8 +94,23 @@ public class MainActivity extends AppCompatActivity {
     private float pre_Y = 0;
     private float ppre_X = 0;
     private float ppre_Y = 0;
+
+    private float average_x;
+    private float average_y;
+    private float dev_aver_x;
+    private float dev_aver_y;
+    private float dev_aver = 1;
+
+    // finger states
+    boolean thumbIsOpen;
+    boolean firstFingerIsOpen;
+    boolean secondFingerIsOpen;
+    boolean thirdFingerIsOpen;
+    boolean fourthFingerIsOpen;
+
     // atom, 20201113, 서버모듈
     private AgentServerMainThread server;
+    private int index = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +118,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         previewDisplayView = new SurfaceView(this);
         setupPreviewDisplayView();
+
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
 
         // atom, 20201113, 서버모듈
         this.server = new AgentServerMainThread();
@@ -144,7 +164,6 @@ public class MainActivity extends AppCompatActivity {
 
         PermissionHelper.checkAndRequestCameraPermissions(this);
         PermissionHelper.checkAndRequestPermissions(this, new String[]{"android.permission.ACCESS_WIFI_STATE", "android.permission.ACCESS_NETWORK_STATE", "android.permission.INTERNET"});
-
 
     }
 
@@ -203,11 +222,11 @@ public class MainActivity extends AppCompatActivity {
                                 Size viewSize = new Size(width, height);
                                 Size displaySize = cameraHelper.computeDisplaySizeFromViewSize(viewSize);
 
-
+                                Log.e(TAG, "  123123    surfaceChanged:");
                                 // 미리 보기 FrameTexture를 통해 카메라 미리 보기 프레임에 컨버터를 입력으로 연결하고
                                 // 출력 폭과 높이를 계산된 디스플레이 크기로 구성합니다.
                                 converter.setSurfaceTextureAndAttachToGLContext(
-                                        previewFrameTexture, 480, 640);//displaySize.getWidth(), displaySize.getHeight());
+                                        previewFrameTexture, 640, 480);//displaySize.getWidth(), displaySize.getHeight());
                             }
 
                             @Override
@@ -230,35 +249,35 @@ public class MainActivity extends AppCompatActivity {
         cameraHelper.startCamera(this, CAMERA_FACING, /*surfaceTexture=*/ null);
     }
 
-    private String getDetectionDebugString(List<DetectionList> objects) {
-        if (objects.isEmpty()) {
-            return "No Object";
-        }
-        String objectsStr = "Number of objects detected: " + objects.size() + "\n";
-        int objectIndex = 0;
-        for (DetectionList object : objects) {
-            objectsStr +=
-                    "\t#Hand landmarks for hand[" + objectIndex + "]: " + object.getDetectionCount() + "\n";
-
-            int landmarkIndex = 0;
-            for (Detection landmark : object.getDetectionList()) {
-                if (landmarkIndex == 8) {
-                }
-                objectsStr +=
-                        "\t\tobject ["
-                                + landmarkIndex
-                                + "]"
-                                + " : landmark - " + landmark + "\n";
-
-//                for (String name : landmark.getDisplayNameList()) {
-//                    objectsStr += " - Name : " + name + "\n";
+//    private String getDetectionDebugString(List<DetectionList> objects) {
+//        if (objects.isEmpty()) {
+//            return "No Object";
+//        }
+//        String objectsStr = "Number of objects detected: " + objects.size() + "\n";
+//        int objectIndex = 0;
+//        for (DetectionList object : objects) {
+//            objectsStr +=
+//                    "\t#Hand landmarks for hand[" + objectIndex + "]: " + object.getDetectionCount() + "\n";
+//
+//            int landmarkIndex = 0;
+//            for (Detection landmark : object.getDetectionList()) {
+//                if (landmarkIndex == 8) {
 //                }
-                ++landmarkIndex;
-            }
-            ++objectIndex;
-        }
-        return objectsStr;
-    }
+//                objectsStr +=
+//                        "\t\tobject ["
+//                                + landmarkIndex
+//                                + "]"
+//                                + " : landmark - " + landmark + "\n";
+//
+////                for (String name : landmark.getDisplayNameList()) {
+////                    objectsStr += " - Name : " + name + "\n";
+////                }
+//                ++landmarkIndex;
+//            }
+//            ++objectIndex;
+//        }
+//        return objectsStr;
+//    }
 
     private String getMultiHandLandmarksDebugString(List<NormalizedLandmarkList> multiHandLandmarks) {
         if (multiHandLandmarks.isEmpty()) {
@@ -280,6 +299,7 @@ public class MainActivity extends AppCompatActivity {
         String multiHandLandmarksStr = "";
         int handIndex = 0;
         int nDir = 0; //
+        int index = 0;
         for (NormalizedLandmarkList landmarks : multiHandLandmarks) {
 //            multiHandLandmarksStr +=
 //                    "#hand[" + handIndex + "]: " + landmarks.getLandmarkCount() + "\n";
@@ -307,52 +327,141 @@ public class MainActivity extends AppCompatActivity {
 //                }
                 ++landmarkIndex;
             }
+//            if (distance > 0.3) {
+//                multiHandLandmarksStr += "distance : " + distance;// + "\n";
+//                if ((previous_X - landmarks.getLandmarkList().get(1).getX()) < 0)
+//                    multiHandLandmarksStr += "direction up " + "\n";
+//                else
+//                    multiHandLandmarksStr += "direction down " + "\n";
+//                previous_X = landmarks.getLandmarkList().get(1).getX();
+//            }
+//            ++handIndex;
 
 
-            if (distance > 0.3) {
-                multiHandLandmarksStr += "distance : " + distance;// + "\n";
-                if ((previous_X - landmarks.getLandmarkList().get(1).getX()) < 0)
-                    multiHandLandmarksStr += "direction up " + "\n";
-                else
-                    multiHandLandmarksStr += "direction down " + "\n";
-                previous_X = landmarks.getLandmarkList().get(1).getX();
+            //거리 필터링
+            float sum_x = 0;
+            float sum_y = 0;
+            float deviation_x = 0;
+            float deviation_y = 0;
+
+            for (int i = 0; i < 21; i++) {
+                sum_x += landmarks.getLandmarkList().get(i).getX();
+                sum_y += landmarks.getLandmarkList().get(i).getY();
             }
-            ++handIndex;
+
+            // 트래킹 손의 중심 좌표 (average_x , average_y)
+            average_x = sum_x / 21;
+            average_y = sum_y / 21;
+
+            for (int i = 0; i < 21; i++) {
+                deviation_x += Math.abs(landmarks.getLandmarkList().get(i).getX() - average_x);
+                deviation_y += Math.abs(landmarks.getLandmarkList().get(i).getY() - average_y);
+            }
+
+            //각 손가락포인트 지점과 중심좌표 지점의 차이나는 거리의 평균
+            dev_aver_x = deviation_x / 21;
+            dev_aver_y = deviation_y / 21;
+
+            dev_aver = (dev_aver_x + dev_aver_y) / 2;
+
+//            Log.e(TAG, "  123123    deviation - average : " + dev_aver);
+
+
+            // finger states
+            thumbIsOpen = true;
+            firstFingerIsOpen = false;
+            secondFingerIsOpen = false;
+            thirdFingerIsOpen = false;
+            fourthFingerIsOpen = false;
+
+
+            //손을 펼쳤는지 안펼쳤는지 제스처 필터링
+            //안드로이드는 화면의 좌측 상단을 (0, 0)으로 하고 x좌표는 오른쪽으로 갈수록 증가하며 y좌표는 아래쪽으로 갈수록 증가하는 좌표계를 갖습니다.
+            float pseudoFixKeyPoint;
+
+            //엄지
+            if (landmarks.getLandmarkList().get(4).getY() > landmarks.getLandmarkList().get(3).getY() - 0.025) {
+                thumbIsOpen = false;
+            }
+
+            //검지
+            pseudoFixKeyPoint = landmarks.getLandmarkList().get(6).getY();
+            if (landmarks.getLandmarkList().get(7).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(8).getY() < pseudoFixKeyPoint) {
+                firstFingerIsOpen = true;
+            }
+
+            //중지
+            pseudoFixKeyPoint = landmarks.getLandmarkList().get(10).getY();
+            if (landmarks.getLandmarkList().get(11).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(12).getY() < pseudoFixKeyPoint) {
+                secondFingerIsOpen = true;
+            }
+
+            //약지
+            pseudoFixKeyPoint = landmarks.getLandmarkList().get(14).getY();
+            if (landmarks.getLandmarkList().get(15).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(16).getY() < pseudoFixKeyPoint) {
+                thirdFingerIsOpen = true;
+            }
+
+            //새끼
+            pseudoFixKeyPoint = landmarks.getLandmarkList().get(18).getY();
+            if (landmarks.getLandmarkList().get(19).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(20).getY() < pseudoFixKeyPoint) {
+                fourthFingerIsOpen = true;
+            }
+
+            if (firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen) {
+                break;
+            }
+
+
+//            Log.e(TAG, "  123123    4: " + landmarks.getLandmarkList().get(4).getY() + " 3: " + landmarks.getLandmarkList().get(3).getY() + "    thumsIsOpen: " + thumbIsOpen  );
+//            Log.e(TAG, "  123123    1: " + thumbIsOpen + " 2: " + firstFingerIsOpen + " 3: " + secondFingerIsOpen + " 4: " + thirdFingerIsOpen + " 5: " + fourthFingerIsOpen);
+//            Log.e(TAG, "  123123    6:" + landmarks.getLandmarkList().get(6).getY() + "    7: " + landmarks.getLandmarkList().get(7).getY() + "    8: " + landmarks.getLandmarkList().get(8).getY());
+
+            ++index;
         }
 
         // sender using TCP/IP from atom //
         // 복수개의 손이 인식되었을 경우를 포함해서 배열의 첫번째 손을 꺼내고
         // 첫번째 손에서 검지손가락 스켈레톤의 데이터를 전송함.
-        // 손끝제외 나머지 손가락들의 중심값 추출
+        // 검지손가락 제외 나머지 손가락들의 중심값 추출
+
+
+        // if (dev_aver > 0.072) {}
+        // 거리로 제약
+
+
         if (multiHandLandmarks.size() > 0) {
-            // landmarkIndex 가 1 이상이면 오른 손 좌표를 가져온다. // 테스트 후
-            NormalizedLandmark landmark = multiHandLandmarks.get(0).getLandmarkList().get(8);
-            int width = 1920;
-            int height = 1080;
-            float sum_x = 0;
-            float sum_y = 0;
-            for (int i = 0; i < 21; i++) {
-                if (i < 5 || i > 8) {
-                    sum_x += multiHandLandmarks.get(0).getLandmarkList().get(i).getX();
-                    sum_y += multiHandLandmarks.get(0).getLandmarkList().get(i).getY();
+            if (firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen) {
+                NormalizedLandmark landmark = multiHandLandmarks.get(index).getLandmarkList().get(8);
+                int width = 1920;
+                int height = 1080;
+                float sum_x = 0;
+                float sum_y = 0;
+                for (int i = 0; i < 21; i++) {
+                    if (i < 5 || i > 8) {
+                        sum_x += multiHandLandmarks.get(index).getLandmarkList().get(i).getX();
+                        sum_y += multiHandLandmarks.get(index).getLandmarkList().get(i).getY();
+                    }
                 }
+                float x = sum_x / 16 * width;//landmark.getX() * width;
+                float y = sum_y / 16 * height;//landmark.getY() * height;
+
+                x = (ppre_X + pre_X + x) / 3;
+                y = (ppre_Y + pre_Y + y) / 3;
+                ppre_X = pre_X;
+                ppre_Y = pre_Y;
+                pre_X = x;
+                pre_Y = y;
+
+                Log.e(TAG, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@get(0)    (" + x + " , " + y + ")");
+
+
+                String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
+                String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), "0");
+                String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
+                this.server.broadcast(packet);
             }
-            float x = sum_x / 16 * width;//landmark.getX() * width;
-            float y = sum_y / 16 * height;//landmark.getY() * height;
-
-            x = (ppre_X + pre_X + x) / 3;
-            y = (ppre_Y + pre_Y + y) / 3;
-            ppre_X = pre_X;
-            ppre_Y = pre_Y;
-            pre_X = x;
-            pre_Y = y;
-
-            String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
-            String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), "0");
-            String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
-            this.server.broadcast(packet);
         }
-        /**/
         return multiHandLandmarksStr;
     }
 }

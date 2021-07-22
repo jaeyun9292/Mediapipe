@@ -160,5 +160,4 @@ public class AgentServerMainThread implements Runnable, IAgentServerSessionListe
         Log.e(MainActivity.TAG, "Receive: " + msg);
 
     }
-
 }
