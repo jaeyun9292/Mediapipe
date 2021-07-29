@@ -101,6 +101,14 @@ public class MainActivity extends AppCompatActivity {
     private float dev_aver_y;
     private float dev_aver = 1;
 
+    private boolean pinch = false;
+    private int pinchcnt = 0;
+    private double pinchdistance = 0;
+
+    private boolean starttracking = false;
+    private int startcnt = 0;
+    private int endcnt = 0;
+
     // finger states
     boolean thumbIsOpen;
     boolean firstFingerIsOpen;
@@ -280,10 +288,20 @@ public class MainActivity extends AppCompatActivity {
 //    }
 
     private String getMultiHandLandmarksDebugString(List<NormalizedLandmarkList> multiHandLandmarks) {
+
         if (multiHandLandmarks.isEmpty()) {
 //            isFirst = true;
+
+            if (starttracking) {
+                ++endcnt;
+            }
+            if (endcnt == 20) {
+                starttracking = false;
+            }
             return "No hand landmarks";
         } else {
+            endcnt = 0;
+
 //            if (isFirst) {
 //                isChecking = true;
 //                handler.postDelayed(new Runnable() {
@@ -307,12 +325,11 @@ public class MainActivity extends AppCompatActivity {
             distance = 0;
             distance = Math.abs(landmarks.getLandmarkList().get(4).getY() - landmarks.getLandmarkList().get(1).getY());
 
-            for (NormalizedLandmark landmark : landmarks.getLandmarkList()) {
+//            for (NormalizedLandmark landmark : landmarks.getLandmarkList()) {
 //                if (isChecking) {
 //                    total += landmark.getX();
 //                    count ++;
 //                }
-
 //                if(landmarkIndex == 8) {
 //                    multiHandLandmarksStr +=
 //                            "Landmark ["
@@ -325,8 +342,8 @@ public class MainActivity extends AppCompatActivity {
 //                                    + landmark.getZ()
 //                                    + ")";
 //                }
-                ++landmarkIndex;
-            }
+//                ++landmarkIndex;
+//            }
 //            if (distance > 0.3) {
 //                multiHandLandmarksStr += "distance : " + distance;// + "\n";
 //                if ((previous_X - landmarks.getLandmarkList().get(1).getX()) < 0)
@@ -339,6 +356,7 @@ public class MainActivity extends AppCompatActivity {
 
 
             //거리 필터링
+
             float sum_x = 0;
             float sum_y = 0;
             float deviation_x = 0;
@@ -364,59 +382,118 @@ public class MainActivity extends AppCompatActivity {
 
             dev_aver = (dev_aver_x + dev_aver_y) / 2;
 
-//            Log.e(TAG, "  123123    deviation - average : " + dev_aver);
-
-
-            // finger states
-            thumbIsOpen = true;
-            firstFingerIsOpen = false;
-            secondFingerIsOpen = false;
-            thirdFingerIsOpen = false;
-            fourthFingerIsOpen = false;
+//            Log.e(TAG, "@@@123123    deviation - average : " + dev_aver);
 
 
             //손을 펼쳤는지 안펼쳤는지 제스처 필터링
             //안드로이드는 화면의 좌측 상단을 (0, 0)으로 하고 x좌표는 오른쪽으로 갈수록 증가하며 y좌표는 아래쪽으로 갈수록 증가하는 좌표계를 갖습니다.
             float pseudoFixKeyPoint;
 
-            //엄지
-            if (landmarks.getLandmarkList().get(4).getY() > landmarks.getLandmarkList().get(3).getY() - 0.025) {
-                thumbIsOpen = false;
-            }
+            /*finger states*/
+//            thumbIsOpen
+//            firstFingerIsOpen
+//            secondFingerIsOpen
+//            thirdFingerIsOpen
+//            fourthFingerIsOpen
+
 
             //검지
             pseudoFixKeyPoint = landmarks.getLandmarkList().get(6).getY();
             if (landmarks.getLandmarkList().get(7).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(8).getY() < pseudoFixKeyPoint) {
                 firstFingerIsOpen = true;
+            } else {
+                firstFingerIsOpen = false;
             }
 
             //중지
             pseudoFixKeyPoint = landmarks.getLandmarkList().get(10).getY();
             if (landmarks.getLandmarkList().get(11).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(12).getY() < pseudoFixKeyPoint) {
                 secondFingerIsOpen = true;
+            } else {
+                secondFingerIsOpen = false;
             }
 
             //약지
             pseudoFixKeyPoint = landmarks.getLandmarkList().get(14).getY();
             if (landmarks.getLandmarkList().get(15).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(16).getY() < pseudoFixKeyPoint) {
                 thirdFingerIsOpen = true;
+            } else {
+                thirdFingerIsOpen = false;
             }
 
             //새끼
             pseudoFixKeyPoint = landmarks.getLandmarkList().get(18).getY();
             if (landmarks.getLandmarkList().get(19).getY() < pseudoFixKeyPoint && landmarks.getLandmarkList().get(20).getY() < pseudoFixKeyPoint) {
                 fourthFingerIsOpen = true;
+            } else {
+                fourthFingerIsOpen = false;
             }
 
-            if (firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen) {
+            //엄지
+            //엄지손가락을 중지손가락 안으로 접었을때
+            if (landmarks.getLandmarkList().get(4).getY() + 0.021 > landmarks.getLandmarkList().get(3).getY()) {
+                thumbIsOpen = false;
+//                Log.e(TAG, "@@@111111 thumbopen: " + thumbIsOpen);
+            }
+            //다른물체를 인식했을때 손가락이 펼쳐지지않았다고 인식
+            if (landmarks.getLandmarkList().get(4).getY() == 0 || landmarks.getLandmarkList().get(3).getY() == 0) {
+                thumbIsOpen = false;
+//                Log.e(TAG, "@@@222222 thumbopen: " + thumbIsOpen);
+            }
+            //엄지손가락을 중지손가락 밖에 접었을때
+            if (!secondFingerIsOpen && landmarks.getLandmarkList().get(10).getY() - 0.005 < landmarks.getLandmarkList().get(4).getY()) {
+                if (Math.abs(landmarks.getLandmarkList().get(10).getX() - landmarks.getLandmarkList().get(4).getX()) < 0.045) {
+                    thumbIsOpen = false;
+//                    Log.e(TAG, "@@@333333 thumbopen: " + thumbIsOpen);
+                }
+            } // 왼손,오른손 둘다 펼쳤을때를 판별하기 위해서 절대값을 쓴다. 4와 1의 x좌표 차이를 판별해 손가락의 펼침 여부 확인
+            if (Math.abs(landmarks.getLandmarkList().get(4).getX() - landmarks.getLandmarkList().get(1).getX()) > 0.085) {
+                thumbIsOpen = true;
+//                Log.e(TAG, "@@@444444 thumbopen: " + thumbIsOpen );
+            }
+
+
+            //pinch thumb - first - distance
+            double thumbx = (double) landmarks.getLandmarkList().get(4).getX();
+            double thumby = (double) landmarks.getLandmarkList().get(4).getY();
+
+            double firstx = (double) landmarks.getLandmarkList().get(8).getX();
+            double firsty = (double) landmarks.getLandmarkList().get(8).getY();
+
+            pinchdistance = Math.sqrt(Math.pow(firstx - thumbx, 2) + Math.pow(firsty - thumby, 2));
+
+//            Log.e(TAG, "@@@ pinch - distance: " + pinchdistance + "dev_aver:" + dev_aver);
+
+            if (pinchdistance < 0.033 && dev_aver > 0.0265 && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen) {
+                pinchcnt++;
+                if (pinchcnt == 3) {
+                    pinch = true;
+                    pinchcnt = 0;
+                }
+            } else {
+                pinchcnt = 0;
+                pinch = false;
+            }
+
+
+            if (thumbIsOpen && firstFingerIsOpen && secondFingerIsOpen && thirdFingerIsOpen && fourthFingerIsOpen) {
+                if (!starttracking) {
+                    ++startcnt;
+                }
+                if (startcnt == 20) {
+                    starttracking = true;
+                }
+            } else {
+                startcnt = 0;
+            }
+
+
+//            Log.e(TAG, "@@@123123    startcnt: " + startcnt + "    endcnt: " + endcnt + "    starttracking: " + starttracking + "    pinch: " + pinch);
+//            Log.e(TAG, "@@@123123    1: " + thumbIsOpen + " 2: " + firstFingerIsOpen + " 3: " + secondFingerIsOpen + " 4: " + thirdFingerIsOpen + " 5: " + fourthFingerIsOpen + " pinch: " + pinch + " pinchcnt: " + pinchcnt);
+
+            if ((starttracking && dev_aver > 0.03 && firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen && !thumbIsOpen) || starttracking && pinch) {
                 break;
             }
-
-
-//            Log.e(TAG, "  123123    4: " + landmarks.getLandmarkList().get(4).getY() + " 3: " + landmarks.getLandmarkList().get(3).getY() + "    thumsIsOpen: " + thumbIsOpen  );
-//            Log.e(TAG, "  123123    1: " + thumbIsOpen + " 2: " + firstFingerIsOpen + " 3: " + secondFingerIsOpen + " 4: " + thirdFingerIsOpen + " 5: " + fourthFingerIsOpen);
-//            Log.e(TAG, "  123123    6:" + landmarks.getLandmarkList().get(6).getY() + "    7: " + landmarks.getLandmarkList().get(7).getY() + "    8: " + landmarks.getLandmarkList().get(8).getY());
-
             ++index;
         }
 
@@ -426,40 +503,41 @@ public class MainActivity extends AppCompatActivity {
         // 검지손가락 제외 나머지 손가락들의 중심값 추출
 
 
-        // if (dev_aver > 0.072) {}
-        // 거리로 제약
-
-
+//        Log.e(TAG, "@@@123123    multiHandLandmarks.size: " + multiHandLandmarks.size());
         if (multiHandLandmarks.size() > 0) {
-            if (firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen) {
-                NormalizedLandmark landmark = multiHandLandmarks.get(index).getLandmarkList().get(8);
+            if ((starttracking && dev_aver > 0.03 && firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen && !thumbIsOpen) || (starttracking && pinch)) {
+                NormalizedLandmark landmark = multiHandLandmarks.get(0).getLandmarkList().get(8);
                 int width = 1920;
                 int height = 1080;
                 float sum_x = 0;
                 float sum_y = 0;
                 for (int i = 0; i < 21; i++) {
                     if (i < 5 || i > 8) {
-                        sum_x += multiHandLandmarks.get(index).getLandmarkList().get(i).getX();
-                        sum_y += multiHandLandmarks.get(index).getLandmarkList().get(i).getY();
+                        sum_x += multiHandLandmarks.get(0).getLandmarkList().get(i).getX();
+                        sum_y += multiHandLandmarks.get(0).getLandmarkList().get(i).getY();
                     }
                 }
                 float x = sum_x / 16 * width;//landmark.getX() * width;
                 float y = sum_y / 16 * height;//landmark.getY() * height;
 
+
                 x = (ppre_X + pre_X + x) / 3;
                 y = (ppre_Y + pre_Y + y) / 3;
+
+                //좌표튀는거 임시방편 최소화
+                if (Math.abs(pre_X - x) < 85 && Math.abs(pre_Y - y) < 85) {
+                    String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
+                    String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), pinch + "");
+                    String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
+                    this.server.broadcast(packet);
+                } else {
+                }
+//                Log.e(TAG, "@@@123123    x: " + (int)Math.abs(pre_X - x) + "       y: " + (int)Math.abs(pre_Y - y));
                 ppre_X = pre_X;
                 ppre_Y = pre_Y;
                 pre_X = x;
                 pre_Y = y;
-
-                Log.e(TAG, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@get(0)    (" + x + " , " + y + ")");
-
-
-                String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
-                String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), "0");
-                String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
-                this.server.broadcast(packet);
+//                Log.e(TAG, "@@@123123    (" + x + " , " + y + ")");
             }
         }
         return multiHandLandmarksStr;
