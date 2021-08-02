@@ -108,6 +108,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean starttracking = false;
     private int startcnt = 0;
     private int endcnt = 0;
+    private int indexcnt = 1;
+
 
     // finger states
     boolean thumbIsOpen;
@@ -288,14 +290,16 @@ public class MainActivity extends AppCompatActivity {
 //    }
 
     private String getMultiHandLandmarksDebugString(List<NormalizedLandmarkList> multiHandLandmarks) {
-
+//        Log.e(TAG, "@@@123123    startcnt: " + startcnt + "    endcnt: " + endcnt + "    starttracking: " + starttracking + "    pinch: " + pinch);
+        indexcnt = 0;
         if (multiHandLandmarks.isEmpty()) {
 //            isFirst = true;
 
             if (starttracking) {
                 ++endcnt;
             }
-            if (endcnt == 20) {
+            if (endcnt == 6) {
+                endcnt = 0;
                 starttracking = false;
             }
             return "No hand landmarks";
@@ -442,7 +446,7 @@ public class MainActivity extends AppCompatActivity {
             }
             //엄지손가락을 중지손가락 밖에 접었을때
             if (!secondFingerIsOpen && landmarks.getLandmarkList().get(10).getY() - 0.005 < landmarks.getLandmarkList().get(4).getY()) {
-                if (Math.abs(landmarks.getLandmarkList().get(10).getX() - landmarks.getLandmarkList().get(4).getX()) < 0.045) {
+                if (Math.abs(landmarks.getLandmarkList().get(10).getX() - landmarks.getLandmarkList().get(4).getX()) < 0.05) {
                     thumbIsOpen = false;
 //                    Log.e(TAG, "@@@333333 thumbopen: " + thumbIsOpen);
                 }
@@ -480,7 +484,8 @@ public class MainActivity extends AppCompatActivity {
                 if (!starttracking) {
                     ++startcnt;
                 }
-                if (startcnt == 20) {
+                if (startcnt == 6) {
+                    startcnt = 0;
                     starttracking = true;
                 }
             } else {
@@ -488,13 +493,13 @@ public class MainActivity extends AppCompatActivity {
             }
 
 
-//            Log.e(TAG, "@@@123123    startcnt: " + startcnt + "    endcnt: " + endcnt + "    starttracking: " + starttracking + "    pinch: " + pinch);
 //            Log.e(TAG, "@@@123123    1: " + thumbIsOpen + " 2: " + firstFingerIsOpen + " 3: " + secondFingerIsOpen + " 4: " + thirdFingerIsOpen + " 5: " + fourthFingerIsOpen + " pinch: " + pinch + " pinchcnt: " + pinchcnt);
 
             if ((starttracking && dev_aver > 0.03 && firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen && !thumbIsOpen) || starttracking && pinch) {
                 break;
             }
             ++index;
+            ++indexcnt;
         }
 
         // sender using TCP/IP from atom //
@@ -506,15 +511,15 @@ public class MainActivity extends AppCompatActivity {
 //        Log.e(TAG, "@@@123123    multiHandLandmarks.size: " + multiHandLandmarks.size());
         if (multiHandLandmarks.size() > 0) {
             if ((starttracking && dev_aver > 0.03 && firstFingerIsOpen && !secondFingerIsOpen && !thirdFingerIsOpen && !fourthFingerIsOpen && !thumbIsOpen) || (starttracking && pinch)) {
-                NormalizedLandmark landmark = multiHandLandmarks.get(0).getLandmarkList().get(8);
+                NormalizedLandmark landmark = multiHandLandmarks.get(indexcnt).getLandmarkList().get(8);
                 int width = 1920;
                 int height = 1080;
                 float sum_x = 0;
                 float sum_y = 0;
                 for (int i = 0; i < 21; i++) {
                     if (i < 5 || i > 8) {
-                        sum_x += multiHandLandmarks.get(0).getLandmarkList().get(i).getX();
-                        sum_y += multiHandLandmarks.get(0).getLandmarkList().get(i).getY();
+                        sum_x += multiHandLandmarks.get(indexcnt).getLandmarkList().get(i).getX();
+                        sum_y += multiHandLandmarks.get(indexcnt).getLandmarkList().get(i).getY();
                     }
                 }
                 float x = sum_x / 16 * width;//landmark.getX() * width;
@@ -524,20 +529,28 @@ public class MainActivity extends AppCompatActivity {
                 x = (ppre_X + pre_X + x) / 3;
                 y = (ppre_Y + pre_Y + y) / 3;
 
-                //좌표튀는거 임시방편 최소화
-                if (Math.abs(pre_X - x) < 85 && Math.abs(pre_Y - y) < 85) {
-                    String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
-                    String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), pinch + "");
-                    String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
-                    this.server.broadcast(packet);
-                } else {
-                }
+
+                String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
+                String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), pinch + "");
+                String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
+                this.server.broadcast(packet);
+
+//                //좌표튀는거 임시방편 최소화
+//                if (Math.abs(pre_X - x) < 85 && Math.abs(pre_Y - y) < 85) {
+//                    String head = String.format("api-command=%s&api-action=%s&api-method=%s", "tuio", "touch", "post");
+//                    String body = String.format("x=%s&y=%s&z=%s&sz=%s&deviation=%s", x, y, distance, landmark.getZ(), pinch + "");
+//                    String packet = String.format("%s&content-length=%s\r\n\r\n%s", head, body.length(), body);
+//                    this.server.broadcast(packet);
+//                }
 //                Log.e(TAG, "@@@123123    x: " + (int)Math.abs(pre_X - x) + "       y: " + (int)Math.abs(pre_Y - y));
+
+
                 ppre_X = pre_X;
                 ppre_Y = pre_Y;
                 pre_X = x;
                 pre_Y = y;
-//                Log.e(TAG, "@@@123123    (" + x + " , " + y + ")");
+                Log.e(TAG, "@@@123123    (" + x + " , " + y + ")");
+                Log.e(TAG, "@@@123123    indexcnt: " + indexcnt);
             }
         }
         return multiHandLandmarksStr;
